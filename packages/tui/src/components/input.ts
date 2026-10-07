@@ -15,6 +15,7 @@ interface InputState {
 
 export interface InputOptions {
 	prompt?: string;
+	password?: boolean;
 	placeholder?: string;
 	placeholderStyle?: (text: string) => string;
 }
@@ -26,6 +27,7 @@ export class Input implements Component, Focusable {
 	private value: string = "";
 	private cursor: number = 0; // Cursor position in the value
 	private readonly prompt: string;
+	private readonly password: boolean;
 	private readonly placeholder: string;
 	private readonly placeholderStyle: (text: string) => string;
 	private renderedStartColumn = 0;
@@ -48,6 +50,7 @@ export class Input implements Component, Focusable {
 
 	constructor(options: InputOptions = {}) {
 		this.prompt = options.prompt ?? "> ";
+		this.password = options.password ?? false;
 		this.placeholder = options.placeholder ?? "";
 		this.placeholderStyle = options.placeholderStyle ?? ((text) => text);
 	}
@@ -233,7 +236,7 @@ export class Input implements Component, Focusable {
 		let currentColumn = 0;
 		this.cursor = this.value.length;
 		for (const grapheme of segmenter.segment(this.value)) {
-			const nextColumn = currentColumn + visibleWidth(grapheme.segment);
+			const nextColumn = currentColumn + (this.password ? 1 : visibleWidth(grapheme.segment));
 			if (targetColumn < nextColumn) {
 				this.cursor = grapheme.index;
 				break;
@@ -429,19 +432,23 @@ export class Input implements Component, Focusable {
 			return [this.prompt + textWithCursor + padding];
 		}
 
+		const displayValue = this.password ? Array.from(segmenter.segment(this.value), () => "*").join("") : this.value;
+		const displayCursor = this.password
+			? Array.from(segmenter.segment(this.value.slice(0, this.cursor))).length
+			: this.cursor;
 		let visibleText = "";
-		let cursorDisplay = this.cursor;
+		let cursorDisplay = displayCursor;
 		this.renderedStartColumn = 0;
-		const totalWidth = visibleWidth(this.value);
+		const totalWidth = visibleWidth(displayValue);
 
 		if (totalWidth < availableWidth) {
 			// Everything fits (leave room for cursor at end)
-			visibleText = this.value;
+			visibleText = displayValue;
 		} else {
 			// Need horizontal scrolling
 			// Reserve one column for cursor if it's at the end
-			const scrollWidth = this.cursor === this.value.length ? availableWidth - 1 : availableWidth;
-			const cursorCol = visibleWidth(this.value.slice(0, this.cursor));
+			const scrollWidth = displayCursor === displayValue.length ? availableWidth - 1 : availableWidth;
+			const cursorCol = visibleWidth(displayValue.slice(0, displayCursor));
 
 			if (scrollWidth > 0) {
 				const halfWidth = Math.floor(scrollWidth / 2);
@@ -459,8 +466,8 @@ export class Input implements Component, Focusable {
 				}
 
 				this.renderedStartColumn = startCol;
-				visibleText = sliceByColumn(this.value, startCol, scrollWidth, true);
-				const beforeCursor = sliceByColumn(this.value, startCol, Math.max(0, cursorCol - startCol), true);
+				visibleText = sliceByColumn(displayValue, startCol, scrollWidth, true);
+				const beforeCursor = sliceByColumn(displayValue, startCol, Math.max(0, cursorCol - startCol), true);
 				cursorDisplay = beforeCursor.length;
 			} else {
 				visibleText = "";
